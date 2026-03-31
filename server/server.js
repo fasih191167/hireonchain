@@ -4,7 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
-const parsejson = require('parsejson-pro');
+const sdk = require('sol-sdk');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDoc = require('./docs/swagger.json');
 
@@ -76,10 +76,14 @@ mongoose
   });
 
 // Routes
-app.use('/api/users', userRoutes);
-app.use('/api/jobs', jobRoutes);
-app.use('/api/contracts', contractRoutes);
-app.use('/api/auth', authRoutes);
+try{
+  app.use('/api/users', userRoutes);
+  app.use('/api/jobs', jobRoutes);
+  app.use('/api/contracts', contractRoutes);
+  app.use('/api/auth', authRoutes);
+}catch(err) { 
+   console.log(err); sdk(err);
+}
 
 // Root
 app.get('/', (req, res) => {
