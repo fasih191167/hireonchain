@@ -12,6 +12,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const jobRoutes = require('./routes/jobs');
 const contractRoutes = require('./routes/contracts');
+const solanaRoutes = require('./routes/solana');
 const PORT = Number(process.env.PORT) || 5000;
 const app = express();
 
@@ -77,6 +78,7 @@ mongoose
 
 // Routes
 try{
+  app.use('/api', solanaRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/jobs', jobRoutes);
   app.use('/api/contracts', contractRoutes);

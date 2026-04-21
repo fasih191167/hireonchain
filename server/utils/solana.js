@@ -19,6 +19,11 @@ const isValidSolanaAddress = address => {
   }
 };
 
+const isValidTransactionSignature = signature => {
+  // Base58 string; signatures are usually 87-88 chars, but keep this permissive.
+  return typeof signature === 'string' && signature.length >= 32 && signature.length <= 200;
+};
+
 // Get account information
 const getAccountInfo = async address => {
   try {
@@ -51,6 +56,7 @@ const verifyTransaction = async signature => {
     const connection = getSolanaConnection();
     const transaction = await connection.getTransaction(signature, {
       commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
     });
 
     if (!transaction) {
@@ -77,7 +83,7 @@ const verifyProgramTransaction = async (signature, expectedProgramId) => {
 
   const { transaction } = result;
 
-  const programId = process.env.SOLANA_PROGRAM_ID;
+  const programId = expectedProgramId || process.env.SOLANA_PROGRAM_ID;
   if (!programId) {
     return { valid: false, error: 'SOLANA_PROGRAM_ID not configured in environment variables' };
   }
@@ -93,11 +99,54 @@ const verifyProgramTransaction = async (signature, expectedProgramId) => {
   return { valid: true, transaction };
 };
 
+const verifyTxInvolvesWallet = async (signature, expectedWalletAddress) => {
+  try {
+    if (!isValidTransactionSignature(signature)) {
+      return { valid: false, error: 'Invalid transaction signature format' };
+    }
+    if (!isValidSolanaAddress(expectedWalletAddress)) {
+      return { valid: false, error: 'Invalid expected wallet address format' };
+    }
+
+    const connection = getSolanaConnection();
+    const parsed = await connection.getParsedTransaction(signature, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+    });
+
+    if (!parsed) {
+      return { valid: false, error: 'Transaction not found' };
+    }
+
+    if (parsed.meta?.err) {
+      return { valid: false, error: 'Transaction failed on-chain', details: parsed.meta.err, transaction: parsed };
+    }
+
+    const expected = new PublicKey(expectedWalletAddress).toBase58();
+    const accountKeys = parsed.transaction.message.accountKeys || [];
+    const involved = accountKeys.some(k => {
+      const pubkey = (k && typeof k === 'object' && 'pubkey' in k) ? k.pubkey : k;
+      return pubkey && pubkey.toString() === expected;
+    });
+
+    if (!involved) {
+      return { valid: false, error: 'Expected wallet address not involved in transaction', transaction: parsed };
+    }
+
+    return { valid: true, transaction: parsed };
+  } catch (error) {
+    console.error('Error verifying transaction wallet involvement:', error);
+    return { valid: false, error: error.message };
+  }
+};
+
 module.exports = {
   getSolanaConnection,
   isValidSolanaAddress,
+  isValidTransactionSignature,
   getAccountInfo,
   getBalance,
   verifyTransaction,
   verifyProgramTransaction,
+  verifyTxInvolvesWallet,
 };
